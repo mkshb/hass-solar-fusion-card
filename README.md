@@ -5,7 +5,7 @@
 Lovelace custom card for the [Solar Fusion](https://github.com/bw/hass-solar-fusion) integration.
 Displays the fused PV forecast with source comparison, quality metrics, and a 14-day history sparkline.
 
-![Solar Fusion Card](images/solar-fusion-card.png)
+<img width="503" height="764" alt="solar-fusion-card" src="https://github.com/user-attachments/assets/48851461-12ef-4b05-a543-6ce2f44593b7" />
 
 ## Features
 
