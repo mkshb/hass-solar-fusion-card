@@ -5,6 +5,8 @@
 Lovelace custom card for the [Solar Fusion](https://github.com/bw/hass-solar-fusion) integration.
 Displays the fused PV forecast with source comparison, quality metrics, and a 14-day history sparkline.
 
+![Solar Fusion Card](images/solar-fusion-card.png)
+
 ## Features
 
 - **Today & Tomorrow** – fused kWh value with uncertainty indicator
@@ -49,10 +51,6 @@ title: Solar Fusion Roof   # optional
 |----------|--------|-----------------|------------------------------------|
 | `entity` | string | **required**    | `*_fused_today` sensor entity ID   |
 | `title`  | string | `Solar Fusion`  | Card heading                       |
-
-## Preview
-
-The card automatically renders all sources configured in the Solar Fusion integration (Forecast.Solar, Open-Meteo, Solcast).
 
 ## License
 
