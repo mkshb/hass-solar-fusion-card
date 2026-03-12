@@ -3,14 +3,14 @@
  * Lovelace Custom Card for the Solar Fusion integration.
  *
  * Installation:
- *   1. Copy to /config/www/solar-fusion-card.js
- *   2. Einstellungen → Dashboards → Ressourcen:
- *      URL: /local/solar-fusion-card.js?v=4   Typ: JavaScript-Modul
+ *   1. Copy solar-fusion-card.js and the locales/ folder to /config/www/
+ *   2. Settings → Dashboards → Resources:
+ *      URL: /local/solar-fusion-card.js   Type: JavaScript module
  *
- * Card YAML – nur eine Entity nötig:
+ * Card YAML – only one entity required:
  *   type: custom:solar-fusion-card
  *   entity: sensor.solar_fusion_dach_fused_today
- *   title: Solar Fusion Dach   # optional
+ *   title: Solar Fusion Roof   # optional
  */
 
 const QUALITY_COLORS = {
@@ -150,10 +150,30 @@ class SolarFusionCard extends HTMLElement {
     this._config = {};
     this._hass = null;
     this._prefix = "";
+    this._locale = {};
+    this._localeLang = null;
+  }
+
+  // Load locale JSON from locales/<lang>.json next to the card file.
+  // Falls back to English if the requested language is unavailable.
+  async _loadLocale(lang) {
+    const base = new URL(".", import.meta.url).href;
+    for (const l of [lang.split("-")[0], "en"]) {
+      try {
+        const res = await fetch(`${base}locales/${l}.json`);
+        if (res.ok) return await res.json();
+      } catch (_) { /* try next */ }
+    }
+    return {};
+  }
+
+  // Returns a translated string, falling back to the key itself.
+  _t(key) {
+    return this._locale[key] ?? key;
   }
 
   setConfig(config) {
-    if (!config.entity) throw new Error("'entity' ist erforderlich");
+    if (!config.entity) throw new Error("'entity' is required");
     this._config = config;
     // Derive prefix: "sensor.solar_fusion_dach_fused_today" → "sensor.solar_fusion_dach"
     this._prefix = config.entity.replace(/_fused_today$/, "");
@@ -161,8 +181,18 @@ class SolarFusionCard extends HTMLElement {
   }
 
   set hass(hass) {
+    const lang = hass.language || "en";
     this._hass = hass;
-    this._render();
+
+    if (lang !== this._localeLang) {
+      this._localeLang = lang;
+      this._loadLocale(lang).then(locale => {
+        this._locale = locale;
+        this._render();
+      });
+    } else {
+      this._render();
+    }
   }
 
   // Fire HA more-info dialog for the given entity_id
@@ -205,7 +235,7 @@ class SolarFusionCard extends HTMLElement {
 
     if (points.length < 2) {
       return `<text x="50%" y="50%" text-anchor="middle" fill="#64748b"
-        font-size="11" font-family="DM Mono,monospace">Noch keine Verlaufsdaten</text>`;
+        font-size="11" font-family="DM Mono,monospace">${this._t("no_history")}</text>`;
     }
 
     const W = 400, H = 60, P = 8;
@@ -234,7 +264,7 @@ class SolarFusionCard extends HTMLElement {
     if (!mainState) {
       this.shadowRoot.innerHTML = `<style>${STYLES}</style>
         <div class="card"><div style="color:#64748b;padding:20px;text-align:center">
-          Entity nicht gefunden: ${entityId}</div></div>`;
+          ${this._t("entity_not_found")} ${entityId}</div></div>`;
       return;
     }
 
@@ -244,13 +274,14 @@ class SolarFusionCard extends HTMLElement {
     const uncertainty = attrs.uncertainty_pct;
     const sources     = attrs.sources || {};
     const history     = attrs.history || [];
-    const title       = this._config.title || "Solar Fusion";
+    const title       = this._config.title || this._t("default_title");
+    const lang        = this._hass.language || "en";
 
     let updatedStr = "—";
     try {
       if (attrs.last_updated)
         updatedStr = new Date(attrs.last_updated)
-          .toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+          .toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" });
     } catch (_) {}
 
     const sourceList = Object.entries(sources); // [[id, data], ...]
@@ -262,22 +293,22 @@ class SolarFusionCard extends HTMLElement {
 
         <div class="header">
           <div class="title">${title}</div>
-          <div class="updated">Aktualisiert<br>${updatedStr} Uhr</div>
+          <div class="updated">${this._t("updated")}<br>${updatedStr}${this._t("time_suffix")}</div>
         </div>
 
         <!-- Hero: today + tomorrow -->
         <div class="hero">
           <div class="hero-card" data-entity="${entityId}">
             <div class="hero-bar" style="background:var(--sf-accent)"></div>
-            <div class="hero-label">Heute</div>
+            <div class="hero-label">${this._t("today")}</div>
             <div class="hero-value">${this._fmt(todayKwh, 1)}<span class="hero-unit">kWh</span></div>
             ${uncertainty != null
-              ? `<div class="hero-unc">±${this._fmt(uncertainty, 1)} % Unsicherheit</div>`
+              ? `<div class="hero-unc">±${this._fmt(uncertainty, 1)} ${this._t("uncertainty")}</div>`
               : ""}
           </div>
           <div class="hero-card" data-entity="${tomorrowId}">
             <div class="hero-bar" style="background:var(--sf-accent2)"></div>
-            <div class="hero-label">Morgen</div>
+            <div class="hero-label">${this._t("tomorrow")}</div>
             <div class="hero-value">${this._fmt(tomorrowKwh, 1)}<span class="hero-unit">kWh</span></div>
           </div>
         </div>
@@ -285,7 +316,7 @@ class SolarFusionCard extends HTMLElement {
         <!-- Source bars -->
         ${sourceList.length ? `
         <div class="sources">
-          <div class="section-title">Quellen – Heute</div>
+          <div class="section-title">${this._t("sources_today")}</div>
           ${sourceList.map(([, s]) => {
             const qEntity = this._qualityEntity(s.name);
             return `
@@ -295,7 +326,7 @@ class SolarFusionCard extends HTMLElement {
                 <div class="bar" style="width:${((s.today_kwh || 0) / maxKwh * 100).toFixed(1)}%"></div>
               </div>
               <div class="source-kwh">${this._fmt(s.today_kwh, 2)} kWh</div>
-              <div class="source-weight">${s.weight != null ? "Gew. " + this._fmt(s.weight * 100, 0) + " %" : "—"}</div>
+              <div class="source-weight">${s.weight != null ? this._t("weight") + " " + this._fmt(s.weight * 100, 0) + " %" : "—"}</div>
             </div>`;
           }).join("")}
         </div>` : ""}
@@ -303,9 +334,9 @@ class SolarFusionCard extends HTMLElement {
         <!-- Quality table -->
         ${sourceList.length ? `
         <div class="q-section">
-          <div class="section-title">Qualität &amp; Genauigkeit</div>
+          <div class="section-title">${this._t("quality_accuracy")}</div>
           <div class="q-header">
-            <span>Quelle</span><span>Label</span><span>RMSE</span><span>Bias</span><span>Tage</span>
+            <span>${this._t("col_source")}</span><span>${this._t("col_label")}</span><span>${this._t("col_rmse")}</span><span>${this._t("col_bias")}</span><span>${this._t("col_days")}</span>
           </div>
           ${sourceList.map(([, s]) => {
             const color   = QUALITY_COLORS[s.quality_label] || "#94a3b8";
@@ -320,27 +351,27 @@ class SolarFusionCard extends HTMLElement {
                 : "—"}</span>
               <span class="q-val">${this._fmt(s.rmse_kwh, 2)}</span>
               <span class="q-val">${bias}</span>
-              <span class="q-days">${s.days_evaluated ?? "—"} d</span>
+              <span class="q-days">${s.days_evaluated ?? "—"} ${this._t("days_short")}</span>
             </div>`;
           }).join("")}
         </div>` : ""}
 
         <!-- Sparkline / history -->
         <div>
-          <div class="section-title">Verlauf (14 Tage)</div>
+          <div class="section-title">${this._t("history_title")}</div>
           <div class="spark-wrap" data-entity="${snapshotId}">
             <svg viewBox="0 0 400 60" preserveAspectRatio="none">
               ${this._sparkline(history)}
             </svg>
             <div class="legend">
               <div class="legend-item">
-                <div class="legend-dot" style="background:#4ade80"></div>Tatsächlich
+                <div class="legend-dot" style="background:#4ade80"></div>${this._t("legend_actual")}
               </div>
               <div class="legend-item">
                 <svg width="16" height="8">
                   <line x1="0" y1="4" x2="16" y2="4" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4 2"/>
                 </svg>
-                Prognose (Ø)
+                ${this._t("legend_forecast")}
               </div>
             </div>
           </div>
@@ -361,5 +392,5 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: "solar-fusion-card",
   name: "Solar Fusion Card",
-  description: "Fusionierte PV-Prognose mit Quellenvergleich, Qualität und Verlauf.",
+  description: "Fused PV forecast with source comparison, quality metrics, and history.",
 });

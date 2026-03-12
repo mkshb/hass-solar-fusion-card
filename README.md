@@ -29,11 +29,17 @@ Displays the fused PV forecast with source comparison, quality metrics, and a 14
 
 ## Manual installation
 
-1. Copy `solar-fusion-card.js` to `/config/www/solar-fusion-card.js`
-2. **Settings → Dashboards → Resources** → Add resource:
-   - URL: `/local/solar-fusion-card.js`
+1. Create the folder `/config/www/hass-solar-fusion-card/`
+2. Copy `solar-fusion-card.js` and the `locales/` folder into it:
+   ```
+   /config/www/hass-solar-fusion-card/solar-fusion-card.js
+   /config/www/hass-solar-fusion-card/locales/en.json
+   /config/www/hass-solar-fusion-card/locales/de.json
+   ```
+3. **Settings → Dashboards → Resources** → Add resource:
+   - URL: `/local/hass-solar-fusion-card/solar-fusion-card.js`
    - Type: **JavaScript module**
-3. Clear browser cache / hard reload
+4. Clear browser cache / hard reload
 
 ## Configuration
 
@@ -51,6 +57,18 @@ title: Solar Fusion Roof   # optional
 |----------|--------|-----------------|------------------------------------|
 | `entity` | string | **required**    | `*_fused_today` sensor entity ID   |
 | `title`  | string | `Solar Fusion`  | Card heading                       |
+
+## Translations
+
+The card ships with English (`en`) and German (`de`). All UI strings live in `dist/locales/<lang>.json`.
+
+**Adding a new language is easy:**
+
+1. Copy `dist/locales/en.json` to `dist/locales/<lang>.json` (e.g. `fr.json`, `nl.json`)
+2. Translate the values – keep the keys unchanged
+3. Open a pull request
+
+The card automatically picks up the language set in your Home Assistant profile.
 
 ## License
 
