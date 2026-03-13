@@ -60,6 +60,7 @@ const STYLES = `
     color: var(--sf-text);
     overflow: hidden;
     position: relative;
+    container-type: inline-size;
   }
   .card::before {
     content: '';
@@ -107,12 +108,12 @@ const STYLES = `
   /* Sources */
   .sources { margin-bottom: 20px; }
   .source-row {
-    display: grid; grid-template-columns: 100px 1fr 70px 68px;
+    display: grid; grid-template-columns: minmax(70px, max-content) 1fr 70px 68px;
     align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #1e2330;
     border-radius: 4px;
   }
   .source-row:last-child { border-bottom: none; }
-  .source-name { font-size: 12px; font-weight: 600; }
+  .source-name { font-size: 12px; font-weight: 600; white-space: nowrap; }
   .bar-wrap { height: 6px; background: var(--sf-border); border-radius: 3px; overflow: hidden; }
   .bar { height: 100%; border-radius: 3px; background: var(--sf-accent); transition: width 0.7s cubic-bezier(.4,0,.2,1); }
   .source-kwh { font-family: var(--sf-mono); font-size: 11px; text-align: right; }
@@ -121,13 +122,13 @@ const STYLES = `
   /* Quality table */
   .q-section { margin-bottom: 20px; }
   .q-header, .q-row {
-    display: grid; grid-template-columns: 100px 68px 52px 52px 1fr;
+    display: grid; grid-template-columns: 1fr 60px 50px 50px auto;
     align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid #1e2330;
     border-radius: 4px;
   }
   .q-row:last-child { border-bottom: none; }
   .q-header { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--sf-muted); padding-bottom: 4px; }
-  .q-name { font-size: 12px; font-weight: 600; }
+  .q-name { font-size: 12px; font-weight: 600; white-space: nowrap; }
   .q-val { font-family: var(--sf-mono); font-size: 11px; }
   .q-days { font-family: var(--sf-mono); font-size: 10px; color: var(--sf-muted); }
   .badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 9px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; font-family: var(--sf-font); }
@@ -141,6 +142,28 @@ const STYLES = `
   .legend { display: flex; gap: 20px; margin-top: 12px; align-items: center; }
   .legend-item { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--sf-muted); font-family: var(--sf-mono); white-space: nowrap; }
   .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── Responsive breakpoints via container queries ─────────────────── */
+
+  /* Narrow (~320 px): drop weight + days columns */
+  @container (max-width: 320px) {
+    .source-name   { overflow: hidden; text-overflow: ellipsis; }
+    .source-weight { display: none; }
+    .source-row    { grid-template-columns: minmax(0, 1fr) 1fr 68px; }
+    .q-name        { overflow: hidden; text-overflow: ellipsis; }
+    .q-col-days, .q-days { display: none; }
+    .q-header, .q-row { grid-template-columns: 1fr 58px 46px 46px; }
+  }
+
+  /* Very narrow (~260 px): stack hero, drop kWh + bias columns */
+  @container (max-width: 260px) {
+    .hero          { grid-template-columns: 1fr; }
+    .hero-value    { font-size: 22px; }
+    .source-kwh    { display: none; }
+    .source-row    { grid-template-columns: minmax(0, 1fr) 1fr; }
+    .q-col-bias, .q-val-bias { display: none; }
+    .q-header, .q-row { grid-template-columns: 1fr 56px 44px; }
+  }
 `;
 
 class SolarFusionCard extends HTMLElement {
@@ -336,7 +359,7 @@ class SolarFusionCard extends HTMLElement {
         <div class="q-section">
           <div class="section-title">${this._t("quality_accuracy")}</div>
           <div class="q-header">
-            <span>${this._t("col_source")}</span><span>${this._t("col_label")}</span><span>${this._t("col_rmse")}</span><span>${this._t("col_bias")}</span><span>${this._t("col_days")}</span>
+            <span>${this._t("col_source")}</span><span>${this._t("col_label")}</span><span>${this._t("col_rmse")}</span><span class="q-col-bias">${this._t("col_bias")}</span><span class="q-col-days">${this._t("col_days")}</span>
           </div>
           ${sourceList.map(([, s]) => {
             const color   = QUALITY_COLORS[s.quality_label] || "#94a3b8";
@@ -350,7 +373,7 @@ class SolarFusionCard extends HTMLElement {
                 ? `<span class="badge" style="background:${color}22;color:${color}">${s.quality_label}</span>`
                 : "—"}</span>
               <span class="q-val">${this._fmt(s.rmse_kwh, 2)}</span>
-              <span class="q-val">${bias}</span>
+              <span class="q-val q-val-bias">${bias}</span>
               <span class="q-days">${s.days_evaluated ?? "—"} ${this._t("days_short")}</span>
             </div>`;
           }).join("")}
