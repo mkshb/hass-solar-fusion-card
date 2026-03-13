@@ -1,6 +1,7 @@
 # Solar Fusion Card
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![HACS Validate](https://github.com/mkshb/hass-solar-fusion-card/actions/workflows/hacs-validate.yaml/badge.svg)](https://github.com/mkshb/hass-solar-fusion-card/actions/workflows/hacs-validate.yaml) [![GitHub Stars](https://img.shields.io/github/stars/mkshb/hass-solar-fusion-card?style=flat)](https://github.com/mkshb/hass-solar-fusion-card/stargazers) [![Last Commit](https://img.shields.io/github/last-commit/mkshb/hass-solar-fusion)](https://github.com/mkshb/hass-solar-fusion/commits/main) [![Open Issues](https://img.shields.io/github/issues/mkshb/hass-solar-fusion-card)](https://github.com/mkshb/hass-solar-fusion-card/issues)
+
 
 Lovelace custom card for the [Solar Fusion](https://github.com/bw/hass-solar-fusion) integration.
 Displays the fused PV forecast with source comparison, quality metrics, and a 14-day history sparkline.
