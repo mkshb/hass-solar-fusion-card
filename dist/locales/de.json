@@ -16,9 +16,11 @@
   "col_rmse": "RMSE",
   "col_bias": "Bias",
   "col_days": "Tage",
-  "history_title": "Verlauf (14 Tage)",
+  "history_title": "Prognoseabweichung (14 Tage)",
   "no_history": "Noch keine Verlaufsdaten",
-  "legend_actual": "Tatsächlich",
-  "legend_forecast": "Prognose (Ø)",
+  "hero_actual": "Ertrag heute",
+  "forecast": "Prognose",
+  "over_forecast": "Überprognose",
+  "under_forecast": "Unterprognose",
   "days_short": "d"
 }
