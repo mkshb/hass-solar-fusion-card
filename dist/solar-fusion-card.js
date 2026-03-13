@@ -9,15 +9,55 @@
  *
  * Card YAML – only one entity required:
  *   type: custom:solar-fusion-card
- *   entity: sensor.solar_fusion_dach_fused_today
+ *   entity: sensor.solar_fusion_dach_forecast_today
  *   title: Solar Fusion Roof   # optional
  */
 
-const QUALITY_COLORS = {
-  "Exzellent": "#4ade80", "Excellent": "#4ade80",
-  "Gut":       "#86efac", "Good":      "#86efac",
-  "Mittel":    "#facc15", "Fair":      "#facc15",
-  "Schlecht":  "#f87171", "Poor":      "#f87171",
+const QUALITY = {
+  "EXCELLENT": { color: "#4ade80", label: "Excellent" },
+  "GOOD":      { color: "#86efac", label: "Good"      },
+  "FAIR":      { color: "#facc15", label: "Fair"      },
+  "POOR":      { color: "#f87171", label: "Poor"      },
+};
+const QUALITY_ALIAS = {
+  "EXZELLENT": "EXCELLENT",
+  "GUT": "GOOD",
+  "OKAY": "FAIR", "MITTEL": "FAIR",
+  "BAD": "POOR", "SCHLECHT": "POOR",
+};
+
+// Converts a #rrggbb hex color to rgba(r,g,b,alpha)
+function hexRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// Built-in English fallback – used when locale JSON files are unavailable
+const DEFAULT_LOCALE = {
+  "entity_not_found": "Entity not found:",
+  "default_title":    "Solar Fusion",
+  "updated":          "Updated",
+  "time_suffix":      "",
+  "today":            "Today",
+  "tomorrow":         "Tomorrow",
+  "uncertainty":      "% uncertainty",
+  "sources_today":    "Sources – Today",
+  "weight":           "Wgt.",
+  "quality_accuracy": "Quality & Accuracy",
+  "col_source":       "Source",
+  "col_label":        "Label",
+  "col_rmse":         "RMSE",
+  "col_bias":         "Bias",
+  "col_days":         "Days",
+  "history_title":    "Forecast Deviation (14 days)",
+  "no_history":       "No history data yet",
+  "hero_actual":      "Today's Yield",
+  "forecast":         "Forecast",
+  "over_forecast":    "Over-forecast",
+  "under_forecast":   "Under-forecast",
+  "days_short":       "d",
 };
 
 const SOURCE_SHORT = {
@@ -26,12 +66,6 @@ const SOURCE_SHORT = {
   "Solcast PV Forecast":       "Solcast",
 };
 
-// Maps source display name → entity ID suffix for quality sensors
-const SOURCE_ENTITY_SUFFIX = {
-  "Forecast.Solar":            "forecast_solar_rmse",
-  "Open-Meteo Solar Forecast": "open_meteo_solar_forecast_rmse",
-  "Solcast PV Forecast":       "solcast_pv_forecast_rmse",
-};
 
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap');
@@ -87,14 +121,15 @@ const STYLES = `
   .updated { font-family: var(--sf-mono); font-size: 10px; color: var(--sf-muted); text-align: right; }
 
   /* Hero */
-  .hero { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .hero { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
   .hero-card {
     background: var(--sf-surface); border: 1px solid var(--sf-border);
     border-radius: 10px; padding: 14px 16px; position: relative; overflow: hidden;
   }
   .hero-card:hover { border-color: #3a4255; }
   .hero-bar { position: absolute; bottom: 0; left: 0; right: 0; height: 2px; }
-  .hero-label { font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--sf-muted); margin-bottom: 6px; }
+  .hero-label { font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--sf-muted); margin-bottom: 2px; }
+  .hero-sublabel { font-size: 9px; font-weight: 400; letter-spacing: 0.05em; text-transform: uppercase; color: var(--sf-muted); opacity: 0.5; margin-bottom: 6px; }
   .hero-value { font-size: 28px; font-weight: 800; line-height: 1; }
   .hero-unit { font-size: 13px; font-weight: 400; color: var(--sf-muted); margin-left: 3px; }
   .hero-unc { font-family: var(--sf-mono); font-size: 10px; color: var(--sf-muted); margin-top: 6px; }
@@ -108,7 +143,7 @@ const STYLES = `
   /* Sources */
   .sources { margin-bottom: 20px; }
   .source-row {
-    display: grid; grid-template-columns: minmax(70px, max-content) 1fr 70px 68px;
+    display: grid; grid-template-columns: 110px 1fr 70px 68px;
     align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #1e2330;
     border-radius: 4px;
   }
@@ -122,12 +157,13 @@ const STYLES = `
   /* Quality table */
   .q-section { margin-bottom: 20px; }
   .q-header, .q-row {
-    display: grid; grid-template-columns: 1fr 60px 50px 50px auto;
+    display: grid; grid-template-columns: 1fr 60px 50px 50px 36px;
     align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid #1e2330;
     border-radius: 4px;
   }
   .q-row:last-child { border-bottom: none; }
   .q-header { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--sf-muted); padding-bottom: 4px; }
+  .q-col-label { text-align: left; }
   .q-name { font-size: 12px; font-weight: 600; white-space: nowrap; }
   .q-val { font-family: var(--sf-mono); font-size: 11px; }
   .q-days { font-family: var(--sf-mono); font-size: 10px; color: var(--sf-muted); }
@@ -138,10 +174,10 @@ const STYLES = `
     background: var(--sf-surface); border: 1px solid var(--sf-border);
     border-radius: 10px; padding: 14px;
   }
-  .spark-wrap svg { width: 100%; height: 60px; display: block; }
-  .legend { display: flex; gap: 20px; margin-top: 12px; align-items: center; }
-  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--sf-muted); font-family: var(--sf-mono); white-space: nowrap; }
-  .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .spark-wrap > svg { width: 100%; height: 80px; display: block; }
+  .legend { display: flex; gap: 20px; margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--sf-border); align-items: center; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94a3b8; font-family: var(--sf-mono); white-space: nowrap; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 
   /* ── Responsive breakpoints via container queries ─────────────────── */
 
@@ -155,9 +191,14 @@ const STYLES = `
     .q-header, .q-row { grid-template-columns: 1fr 58px 46px 46px; }
   }
 
+  /* Narrow hero: 3 → 2 columns */
+  @container (max-width: 360px) {
+    .hero { grid-template-columns: 1fr 1fr; }
+  }
+
   /* Very narrow (~260 px): stack hero, drop kWh + bias columns */
   @container (max-width: 260px) {
-    .hero          { grid-template-columns: 1fr; }
+    .hero          { grid-template-columns: 1fr 1fr; }
     .hero-value    { font-size: 22px; }
     .source-kwh    { display: none; }
     .source-row    { grid-template-columns: minmax(0, 1fr) 1fr; }
@@ -192,14 +233,14 @@ class SolarFusionCard extends HTMLElement {
 
   // Returns a translated string, falling back to the key itself.
   _t(key) {
-    return this._locale[key] ?? key;
+    return this._locale[key] ?? DEFAULT_LOCALE[key] ?? key;
   }
 
   setConfig(config) {
     if (!config.entity) throw new Error("'entity' is required");
     this._config = config;
     // Derive prefix: "sensor.solar_fusion_dach_fused_today" → "sensor.solar_fusion_dach"
-    this._prefix = config.entity.replace(/_fused_today$/, "");
+    this._prefix = config.entity.replace(/_forecast_today$/, "");
     this._render();
   }
 
@@ -232,11 +273,6 @@ class SolarFusionCard extends HTMLElement {
     });
   }
 
-  _qualityEntity(sourceName) {
-    const suffix = SOURCE_ENTITY_SUFFIX[sourceName];
-    return suffix ? `${this._prefix}_${suffix}` : null;
-  }
-
   _fmt(v, decimals = 2) {
     if (v === null || v === undefined) return "—";
     return Number(v).toFixed(decimals);
@@ -251,37 +287,54 @@ class SolarFusionCard extends HTMLElement {
     const points = Object.entries(byDate)
       .sort(([a], [b]) => a.localeCompare(b))
       .slice(-14)
-      .map(([, v]) => ({
-        forecast: v.forecasts.reduce((a, b) => a + b, 0) / (v.forecasts.length || 1),
-        actual: v.actual,
+      .map(([date, v]) => ({
+        date,
+        deviation: v.forecasts.reduce((a, b) => a + b, 0) / (v.forecasts.length || 1) - v.actual,
       }));
 
-    if (points.length < 2) {
+    if (points.length < 1) {
       return `<text x="50%" y="50%" text-anchor="middle" fill="#64748b"
         font-size="11" font-family="DM Mono,monospace">${this._t("no_history")}</text>`;
     }
 
-    const W = 400, H = 60, P = 8;
-    const maxV = Math.max(...points.map(p => Math.max(p.forecast, p.actual)), 0.1);
-    const sx = i => P + (i / (points.length - 1)) * (W - P * 2);
-    const sy = v => H - P - (v / maxV) * (H - P * 2);
-    const fPath = points.map((p, i) => `${i ? "L" : "M"}${sx(i).toFixed(1)},${sy(p.forecast).toFixed(1)}`).join(" ");
-    const aPath = points.map((p, i) => `${i ? "L" : "M"}${sx(i).toFixed(1)},${sy(p.actual).toFixed(1)}`).join(" ");
-    const dots  = points.map((p, i) =>
-      `<circle cx="${sx(i).toFixed(1)}" cy="${sy(p.actual).toFixed(1)}" r="2.5" fill="#4ade80"/>`
-    ).join("");
-    return `
-      <path d="${fPath}" stroke="#f59e0b" stroke-width="1.5" fill="none" stroke-dasharray="4 2" opacity="0.7"/>
-      <path d="${aPath}" stroke="#4ade80" stroke-width="2" fill="none"/>
-      ${dots}`;
+    const W = 400, H = 80;
+    const CT = 6, CB = 62;           // chart area top / bottom y
+    const midY = (CT + CB) / 2;      // zero line y = 34
+    const maxDev = Math.max(...points.map(p => Math.abs(p.deviation)), 0.5);
+    const scale = (midY - CT) / maxDev;
+
+    const n = points.length;
+    const slotW = (W - 24) / n;
+    const barW = Math.max(3, Math.min(slotW * 0.75, 24));
+
+    const bars = points.map((p, i) => {
+      const cx  = 12 + i * slotW + slotW / 2;
+      const h   = Math.abs(p.deviation) * scale;
+      const y   = p.deviation >= 0 ? midY - h : midY;
+      const col = p.deviation >= 0 ? "#f59e0b" : "#60a5fa";
+      return `<rect x="${(cx - barW / 2).toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(h, 1).toFixed(1)}" fill="${col}" rx="1.5"/>`;
+    }).join("");
+
+    const zero = `<line x1="8" y1="${midY}" x2="${W - 8}" y2="${midY}" stroke="#3a4255" stroke-width="1"/>`;
+
+    const scaleLabels = `
+      <text x="${W - 8}" y="${CT + 8}" text-anchor="end" fill="#4b5563" font-size="8" font-family="DM Mono,monospace">+${maxDev.toFixed(1)}</text>
+      <text x="${W - 8}" y="${CB - 2}" text-anchor="end" fill="#4b5563" font-size="8" font-family="DM Mono,monospace">−${maxDev.toFixed(1)}</text>`;
+
+    const fmt = d => d.slice(5).replace("-", "/");
+    const dateLabels = `
+      <text x="12" y="${H - 4}" fill="#4b5563" font-size="8" font-family="DM Mono,monospace">${fmt(points[0].date)}</text>
+      ${points.length > 1 ? `<text x="${W - 12}" y="${H - 4}" text-anchor="end" fill="#4b5563" font-size="8" font-family="DM Mono,monospace">${fmt(points[points.length - 1].date)}</text>` : ""}`;
+
+    return zero + bars + scaleLabels + dateLabels;
   }
 
   _render() {
     if (!this._config || !this._hass) return;
 
-    const entityId   = this._config.entity;
-    const tomorrowId = `${this._prefix}_fused_tomorrow`;
-    const snapshotId = `${this._prefix}_morning_snapshot`;
+    const entityId   = this._config.entity;  // forecast_today – provides all attributes
+    const tomorrowId = `${this._prefix}_forecast_tomorrow`;
+    const actualId   = `${this._prefix}_diagnostics_pv_daily_production`;
 
     const mainState = this._hass.states[entityId];
     if (!mainState) {
@@ -319,11 +372,18 @@ class SolarFusionCard extends HTMLElement {
           <div class="updated">${this._t("updated")}<br>${updatedStr}${this._t("time_suffix")}</div>
         </div>
 
-        <!-- Hero: today + tomorrow -->
+        <!-- Hero: actual + today + tomorrow -->
         <div class="hero">
+          <div class="hero-card" data-entity="${actualId}">
+            <div class="hero-bar" style="background:#4ade80"></div>
+            <div class="hero-label">${this._t("hero_actual")}</div>
+            <div class="hero-sublabel" style="visibility:hidden">.</div>
+            <div class="hero-value">${this._fmt(parseFloat(this._hass.states[actualId]?.state) || null, 1)}<span class="hero-unit">kWh</span></div>
+          </div>
           <div class="hero-card" data-entity="${entityId}">
             <div class="hero-bar" style="background:var(--sf-accent)"></div>
             <div class="hero-label">${this._t("today")}</div>
+            <div class="hero-sublabel">${this._t("forecast")}</div>
             <div class="hero-value">${this._fmt(todayKwh, 1)}<span class="hero-unit">kWh</span></div>
             ${uncertainty != null
               ? `<div class="hero-unc">±${this._fmt(uncertainty, 1)} ${this._t("uncertainty")}</div>`
@@ -332,6 +392,7 @@ class SolarFusionCard extends HTMLElement {
           <div class="hero-card" data-entity="${tomorrowId}">
             <div class="hero-bar" style="background:var(--sf-accent2)"></div>
             <div class="hero-label">${this._t("tomorrow")}</div>
+            <div class="hero-sublabel">${this._t("forecast")}</div>
             <div class="hero-value">${this._fmt(tomorrowKwh, 1)}<span class="hero-unit">kWh</span></div>
           </div>
         </div>
@@ -340,18 +401,16 @@ class SolarFusionCard extends HTMLElement {
         ${sourceList.length ? `
         <div class="sources">
           <div class="section-title">${this._t("sources_today")}</div>
-          ${sourceList.map(([, s]) => {
-            const qEntity = this._qualityEntity(s.name);
-            return `
-            <div class="source-row"${qEntity ? ` data-entity="${qEntity}"` : ""}>
+          ${sourceList.map(([, s]) => `
+            <div class="source-row" data-entity="${entityId}">
               <div class="source-name">${SOURCE_SHORT[s.name] || s.name}</div>
               <div class="bar-wrap">
                 <div class="bar" style="width:${((s.today_kwh || 0) / maxKwh * 100).toFixed(1)}%"></div>
               </div>
               <div class="source-kwh">${this._fmt(s.today_kwh, 2)} kWh</div>
               <div class="source-weight">${s.weight != null ? this._t("weight") + " " + this._fmt(s.weight * 100, 0) + " %" : "—"}</div>
-            </div>`;
-          }).join("")}
+            </div>`
+          ).join("")}
         </div>` : ""}
 
         <!-- Quality table -->
@@ -359,18 +418,20 @@ class SolarFusionCard extends HTMLElement {
         <div class="q-section">
           <div class="section-title">${this._t("quality_accuracy")}</div>
           <div class="q-header">
-            <span>${this._t("col_source")}</span><span>${this._t("col_label")}</span><span>${this._t("col_rmse")}</span><span class="q-col-bias">${this._t("col_bias")}</span><span class="q-col-days">${this._t("col_days")}</span>
+            <span>${this._t("col_source")}</span><span class="q-col-label">${this._t("col_label")}</span><span>${this._t("col_rmse")}</span><span class="q-col-bias">${this._t("col_bias")}</span><span class="q-col-days">${this._t("col_days")}</span>
           </div>
           ${sourceList.map(([, s]) => {
-            const color   = QUALITY_COLORS[s.quality_label] || "#94a3b8";
+            const key    = (s.quality_label || "").toUpperCase();
+            const q      = QUALITY[QUALITY_ALIAS[key] || key];
+            const color  = q?.color || "#94a3b8";
+            const qlabel = q?.label || s.quality_label;
             const bias    = s.bias_kwh != null
               ? (s.bias_kwh > 0 ? "+" : "") + this._fmt(s.bias_kwh, 2) : "—";
-            const qEntity = this._qualityEntity(s.name);
             return `
-            <div class="q-row"${qEntity ? ` data-entity="${qEntity}"` : ""}>
+            <div class="q-row" data-entity="${entityId}">
               <span class="q-name">${SOURCE_SHORT[s.name] || s.name}</span>
-              <span>${s.quality_label
-                ? `<span class="badge" style="background:${color}22;color:${color}">${s.quality_label}</span>`
+              <span class="q-col-label">${s.quality_label
+                ? `<span class="badge" style="background:${hexRgba(color,0.25)};border:1px solid ${hexRgba(color,0.75)};color:${color}">${qlabel}</span>`
                 : "—"}</span>
               <span class="q-val">${this._fmt(s.rmse_kwh, 2)}</span>
               <span class="q-val q-val-bias">${bias}</span>
@@ -382,19 +443,16 @@ class SolarFusionCard extends HTMLElement {
         <!-- Sparkline / history -->
         <div>
           <div class="section-title">${this._t("history_title")}</div>
-          <div class="spark-wrap" data-entity="${snapshotId}">
+          <div class="spark-wrap">
             <svg viewBox="0 0 400 60" preserveAspectRatio="none">
               ${this._sparkline(history)}
             </svg>
             <div class="legend">
               <div class="legend-item">
-                <div class="legend-dot" style="background:#4ade80"></div>${this._t("legend_actual")}
+                <div class="legend-dot" style="background:#f59e0b;border-radius:2px"></div>${this._t("over_forecast")}
               </div>
               <div class="legend-item">
-                <svg width="16" height="8">
-                  <line x1="0" y1="4" x2="16" y2="4" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4 2"/>
-                </svg>
-                ${this._t("legend_forecast")}
+                <div class="legend-dot" style="background:#60a5fa;border-radius:2px"></div>${this._t("under_forecast")}
               </div>
             </div>
           </div>
