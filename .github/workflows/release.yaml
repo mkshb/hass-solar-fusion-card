@@ -9,6 +9,9 @@ permissions:
   contents: write
 
 jobs:
+  hacs-validate:
+    uses: ./.github/workflows/hacs-validate.yaml
+    
   release:
     name: Create GitHub release
     runs-on: ubuntu-latest
