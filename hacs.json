@@ -2,6 +2,5 @@
   "name": "Solar Fusion Card",
   "render_readme": true,
   "homeassistant": "2023.2",
-  "filename": "solar-fusion-card.js",
-  "zip_release": true
+  "filename": "solar-fusion-card.js"
 }
