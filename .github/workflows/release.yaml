@@ -19,13 +19,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build release zip
-        run: |
-          cd dist
-          zip -r ../solar-fusion-card.zip solar-fusion-card.js locales/
-
-      - name: Create release and upload assets
+      - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          files: solar-fusion-card.zip
           generate_release_notes: true
