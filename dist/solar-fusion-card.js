@@ -49,6 +49,7 @@ const DEFAULT_LOCALE = {
   "col_source":       "Source",
   "col_label":        "Label",
   "col_rmse":         "RMSE",
+  "col_mae":          "MAE",
   "col_bias":         "Bias",
   "col_days":         "Days",
   "history_title":    "Forecast Deviation (14 days)",
@@ -153,11 +154,12 @@ const STYLES = `
   .bar { height: 100%; border-radius: 3px; background: var(--sf-accent); transition: width 0.7s cubic-bezier(.4,0,.2,1); }
   .source-kwh { font-family: var(--sf-mono); font-size: 11px; text-align: right; }
   .source-weight { font-family: var(--sf-mono); font-size: 10px; color: var(--sf-muted); text-align: right; }
+  .source-kwh-tmr { font-family: var(--sf-mono); font-size: 9px; color: var(--sf-muted); margin-top: 1px; }
 
   /* Quality table */
   .q-section { margin-bottom: 20px; }
   .q-header, .q-row {
-    display: grid; grid-template-columns: 1fr 60px 50px 50px 36px;
+    display: grid; grid-template-columns: 1fr 60px 46px 46px 46px 36px;
     align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid #1e2330;
     border-radius: 4px;
   }
@@ -167,6 +169,7 @@ const STYLES = `
   .q-name { font-size: 12px; font-weight: 600; white-space: nowrap; }
   .q-val { font-family: var(--sf-mono); font-size: 11px; }
   .q-days { font-family: var(--sf-mono); font-size: 10px; color: var(--sf-muted); }
+  .q-cal { font-family: var(--sf-mono); font-size: 8px; color: var(--sf-muted); margin-top: 2px; opacity: 0.7; }
   .badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 9px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; font-family: var(--sf-font); }
 
   /* Sparkline */
@@ -188,7 +191,7 @@ const STYLES = `
     .source-row    { grid-template-columns: minmax(0, 1fr) 1fr 68px; }
     .q-name        { overflow: hidden; text-overflow: ellipsis; }
     .q-col-days, .q-days { display: none; }
-    .q-header, .q-row { grid-template-columns: 1fr 58px 46px 46px; }
+    .q-header, .q-row { grid-template-columns: 1fr 58px 44px 44px 44px; }
   }
 
   /* Narrow hero: 3 → 2 columns */
@@ -196,12 +199,13 @@ const STYLES = `
     .hero { grid-template-columns: 1fr 1fr; }
   }
 
-  /* Very narrow (~260 px): stack hero, drop kWh + bias columns */
+  /* Very narrow (~260 px): stack hero, drop kWh + mae + bias columns */
   @container (max-width: 260px) {
     .hero          { grid-template-columns: 1fr 1fr; }
     .hero-value    { font-size: 22px; }
     .source-kwh    { display: none; }
     .source-row    { grid-template-columns: minmax(0, 1fr) 1fr; }
+    .q-col-mae, .q-val-mae { display: none; }
     .q-col-bias, .q-val-bias { display: none; }
     .q-header, .q-row { grid-template-columns: 1fr 56px 44px; }
   }
@@ -407,7 +411,10 @@ class SolarFusionCard extends HTMLElement {
               <div class="bar-wrap">
                 <div class="bar" style="width:${((s.today_kwh || 0) / maxKwh * 100).toFixed(1)}%"></div>
               </div>
-              <div class="source-kwh">${this._fmt(s.today_kwh, 2)} kWh</div>
+              <div class="source-kwh">
+                ${this._fmt(s.today_kwh, 2)} kWh
+                ${s.tomorrow_kwh != null ? `<div class="source-kwh-tmr">${this._fmt(s.tomorrow_kwh, 2)} kWh</div>` : ""}
+              </div>
               <div class="source-weight">${s.weight != null ? this._t("weight") + " " + this._fmt(s.weight * 100, 0) + " %" : "—"}</div>
             </div>`
           ).join("")}
@@ -418,22 +425,26 @@ class SolarFusionCard extends HTMLElement {
         <div class="q-section">
           <div class="section-title">${this._t("quality_accuracy")}</div>
           <div class="q-header">
-            <span>${this._t("col_source")}</span><span class="q-col-label">${this._t("col_label")}</span><span>${this._t("col_rmse")}</span><span class="q-col-bias">${this._t("col_bias")}</span><span class="q-col-days">${this._t("col_days")}</span>
+            <span>${this._t("col_source")}</span><span class="q-col-label">${this._t("col_label")}</span><span>${this._t("col_rmse")}</span><span class="q-col-mae">${this._t("col_mae")}</span><span class="q-col-bias">${this._t("col_bias")}</span><span class="q-col-days">${this._t("col_days")}</span>
           </div>
           ${sourceList.map(([, s]) => {
             const key    = (s.quality_label || "").toUpperCase();
             const q      = QUALITY[QUALITY_ALIAS[key] || key];
             const color  = q?.color || "#94a3b8";
             const qlabel = q?.label || s.quality_label;
-            const bias    = s.bias_kwh != null
+            const bias   = s.bias_kwh != null
               ? (s.bias_kwh > 0 ? "+" : "") + this._fmt(s.bias_kwh, 2) : "—";
+            const calShort = s.calibration_mode === "isotonic" ? "iso"
+              : s.calibration_mode === "linear_bias" ? "linear"
+              : s.calibration_mode || null;
             return `
             <div class="q-row" data-entity="${entityId}">
               <span class="q-name">${SOURCE_SHORT[s.name] || s.name}</span>
               <span class="q-col-label">${s.quality_label
-                ? `<span class="badge" style="background:${hexRgba(color,0.25)};border:1px solid ${hexRgba(color,0.75)};color:${color}">${qlabel}</span>`
+                ? `<span class="badge" style="background:${hexRgba(color,0.25)};border:1px solid ${hexRgba(color,0.75)};color:${color}">${qlabel}</span>${calShort ? `<div class="q-cal">${calShort}</div>` : ""}`
                 : "—"}</span>
               <span class="q-val">${this._fmt(s.rmse_kwh, 2)}</span>
+              <span class="q-val q-val-mae">${this._fmt(s.mae_kwh, 2)}</span>
               <span class="q-val q-val-bias">${bias}</span>
               <span class="q-days">${s.days_evaluated ?? "—"} ${this._t("days_short")}</span>
             </div>`;
@@ -444,7 +455,7 @@ class SolarFusionCard extends HTMLElement {
         <div>
           <div class="section-title">${this._t("history_title")}</div>
           <div class="spark-wrap">
-            <svg viewBox="0 0 400 60" preserveAspectRatio="none">
+            <svg viewBox="0 0 400 80" preserveAspectRatio="none">
               ${this._sparkline(history)}
             </svg>
             <div class="legend">
@@ -464,7 +475,7 @@ class SolarFusionCard extends HTMLElement {
   }
 
   static getStubConfig() {
-    return { entity: "sensor.solar_fusion_dach_fused_today" };
+    return { entity: "sensor.solar_fusion_dach_forecast_today" };
   }
 }
 

@@ -14,6 +14,7 @@
   "col_source": "Source",
   "col_label": "Label",
   "col_rmse": "RMSE",
+  "col_mae": "MAE",
   "col_bias": "Bias",
   "col_days": "Days",
   "history_title": "Forecast Deviation (14 days)",
