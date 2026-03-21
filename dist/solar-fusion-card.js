@@ -20,7 +20,7 @@ const QUALITY = {
   "POOR":      { color: "#f87171", label: "Poor"      },
 };
 const QUALITY_ALIAS = {
-  "EXZELLENT": "EXCELLENT",
+  "TOP": "EXCELLENT", "EXZELLENT": "EXCELLENT",
   "GUT": "GOOD",
   "OKAY": "FAIR", "MITTEL": "FAIR",
   "BAD": "POOR", "SCHLECHT": "POOR",
