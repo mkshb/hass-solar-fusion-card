@@ -23,5 +23,14 @@
   "forecast": "Prognose",
   "over_forecast": "Überprognose",
   "under_forecast": "Unterprognose",
-  "days_short": "d"
+  "days_short": "d",
+  "quality_accurate": "Genau",
+  "quality_skewed": "Verzerrt",
+  "quality_noisy": "Unruhig",
+  "quality_poor": "Schlecht",
+  "excluded": "ausgeschl.",
+  "excluded_reason": "Ausgeschlossen: RMSE {rmse} kWh zu hoch im Vergleich zur besten Quelle",
+  "cal_raw": "roh",
+  "cal_raw_hint": "Kalibrierung würde den Fehler erhöhen – Quelle geht unkalibriert in die Fusion ein",
+  "rmse_calibrated": "RMSE kalibriert"
 }

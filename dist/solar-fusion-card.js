@@ -13,17 +13,19 @@
  *   title: Solar Fusion Roof   # optional
  */
 
+// Keys match the integration's language-neutral quality_label (calc.quality_label)
 const QUALITY = {
-  "EXCELLENT": { color: "#4ade80", label: "Excellent" },
-  "GOOD":      { color: "#86efac", label: "Good"      },
-  "FAIR":      { color: "#facc15", label: "Fair"      },
-  "POOR":      { color: "#f87171", label: "Poor"      },
+  "accurate": { color: "#4ade80" },
+  "skewed":   { color: "#38bdf8" },
+  "noisy":    { color: "#facc15" },
+  "poor":     { color: "#f87171" },
 };
+// Labels from integration versions before 0.2.2
 const QUALITY_ALIAS = {
-  "TOP": "EXCELLENT", "EXZELLENT": "EXCELLENT",
-  "GUT": "GOOD",
-  "OKAY": "FAIR", "MITTEL": "FAIR",
-  "BAD": "POOR", "SCHLECHT": "POOR",
+  "excellent": "accurate", "top": "accurate", "good": "accurate", "genau": "accurate",
+  "verzerrt (korrigiert)": "skewed",
+  "fair": "noisy", "okay": "noisy", "unruhig": "noisy",
+  "bad": "poor", "schlecht": "poor",
 };
 
 // Converts a #rrggbb hex color to rgba(r,g,b,alpha)
@@ -59,6 +61,15 @@ const DEFAULT_LOCALE = {
   "over_forecast":    "Over-forecast",
   "under_forecast":   "Under-forecast",
   "days_short":       "d",
+  "quality_accurate": "Accurate",
+  "quality_skewed":   "Skewed",
+  "quality_noisy":    "Noisy",
+  "quality_poor":     "Poor",
+  "excluded":         "excl.",
+  "excluded_reason":  "Excluded: RMSE {rmse} kWh too high compared to the best source",
+  "cal_raw":          "raw",
+  "cal_raw_hint":     "Calibration would increase the error – source is fused uncalibrated",
+  "rmse_calibrated":  "RMSE calibrated",
 };
 
 const SOURCE_SHORT = {
@@ -155,6 +166,11 @@ const STYLES = `
   .source-kwh { font-family: var(--sf-mono); font-size: 11px; text-align: right; }
   .source-weight { font-family: var(--sf-mono); font-size: 10px; color: var(--sf-muted); text-align: right; }
   .source-kwh-tmr { font-family: var(--sf-mono); font-size: 9px; color: var(--sf-muted); margin-top: 1px; }
+  .source-row.excluded .source-name,
+  .source-row.excluded .source-kwh,
+  .source-row.excluded .bar-wrap { opacity: 0.4; }
+  .source-row.excluded .bar { background: var(--sf-muted); }
+  .source-excl { color: #f87171; text-transform: uppercase; letter-spacing: 0.06em; }
 
   /* Quality table */
   .q-section { margin-bottom: 20px; }
@@ -282,6 +298,32 @@ class SolarFusionCard extends HTMLElement {
     return Number(v).toFixed(decimals);
   }
 
+  // Fills {name} placeholders in a translated string
+  _tf(key, vars) {
+    return this._t(key).replace(/\{(\w+)\}/g, (m, k) => vars[k] ?? m);
+  }
+
+  _escape(str) {
+    return String(str).replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    })[c]);
+  }
+
+  // RMSE that drives the weight: calibrated when calibration is active, else raw
+  _effectiveRmse(s) {
+    return s.calibration_active !== false && s.rmse_calibrated_kwh != null
+      ? s.rmse_calibrated_kwh : s.rmse_kwh;
+  }
+
+  // Short calibration hint for the quality table; null when nothing to show
+  _calShort(s) {
+    if (s.calibration_active === false) return this._t("cal_raw");
+    const mode = s.calibration_mode || "";
+    if (mode.startsWith("isotonic")) return "iso";
+    if (mode.startsWith("linear")) return "linear";
+    return null;
+  }
+
   _sparkline(history) {
     const byDate = {};
     for (const r of history) {
@@ -405,8 +447,13 @@ class SolarFusionCard extends HTMLElement {
         ${sourceList.length ? `
         <div class="sources">
           <div class="section-title">${this._t("sources_today")}</div>
-          ${sourceList.map(([, s]) => `
-            <div class="source-row" data-entity="${entityId}">
+          ${sourceList.map(([, s]) => {
+            const rmse = this._effectiveRmse(s);
+            const exclTitle = s.excluded
+              ? this._tf("excluded_reason", { rmse: rmse != null ? this._fmt(rmse, 1) : "—" })
+              : "";
+            return `
+            <div class="source-row${s.excluded ? " excluded" : ""}" data-entity="${entityId}"${s.excluded ? ` title="${this._escape(exclTitle)}"` : ""}>
               <div class="source-name">${SOURCE_SHORT[s.name] || s.name}</div>
               <div class="bar-wrap">
                 <div class="bar" style="width:${((s.today_kwh || 0) / maxKwh * 100).toFixed(1)}%"></div>
@@ -415,9 +462,11 @@ class SolarFusionCard extends HTMLElement {
                 ${this._fmt(s.today_kwh, 2)} kWh
                 ${s.tomorrow_kwh != null ? `<div class="source-kwh-tmr">${this._fmt(s.tomorrow_kwh, 2)} kWh</div>` : ""}
               </div>
-              <div class="source-weight">${s.weight != null ? this._t("weight") + " " + this._fmt(s.weight * 100, 0) + " %" : "—"}</div>
-            </div>`
-          ).join("")}
+              <div class="source-weight">${s.excluded
+                ? `<span class="source-excl">${this._t("excluded")}</span>`
+                : s.weight != null ? this._t("weight") + " " + this._fmt(s.weight * 100, 0) + " %" : "—"}</div>
+            </div>`;
+          }).join("")}
         </div>` : ""}
 
         <!-- Quality table -->
@@ -428,20 +477,22 @@ class SolarFusionCard extends HTMLElement {
             <span>${this._t("col_source")}</span><span class="q-col-label">${this._t("col_label")}</span><span>${this._t("col_rmse")}</span><span class="q-col-mae">${this._t("col_mae")}</span><span class="q-col-bias">${this._t("col_bias")}</span><span class="q-col-days">${this._t("col_days")}</span>
           </div>
           ${sourceList.map(([, s]) => {
-            const key    = (s.quality_label || "").toUpperCase();
-            const q      = QUALITY[QUALITY_ALIAS[key] || key];
-            const color  = q?.color || "#94a3b8";
-            const qlabel = q?.label || s.quality_label;
+            const raw    = (s.quality_label || "").toLowerCase();
+            const key    = QUALITY_ALIAS[raw] || raw;
+            const color  = QUALITY[key]?.color || "#94a3b8";
+            const qlabel = QUALITY[key] ? this._t(`quality_${key}`) : s.quality_label;
             const bias   = s.bias_kwh != null
               ? (s.bias_kwh > 0 ? "+" : "") + this._fmt(s.bias_kwh, 2) : "—";
-            const calShort = s.calibration_mode === "isotonic" ? "iso"
-              : s.calibration_mode === "linear_bias" ? "linear"
-              : s.calibration_mode || null;
+            const calShort = this._calShort(s);
+            const tooltip  = [
+              s.rmse_calibrated_kwh != null ? `${this._t("rmse_calibrated")}: ${this._fmt(s.rmse_calibrated_kwh, 2)} kWh` : null,
+              s.calibration_active === false ? this._t("cal_raw_hint") : null,
+            ].filter(Boolean).join("\n");
             return `
-            <div class="q-row" data-entity="${entityId}">
+            <div class="q-row" data-entity="${entityId}"${tooltip ? ` title="${this._escape(tooltip)}"` : ""}>
               <span class="q-name">${SOURCE_SHORT[s.name] || s.name}</span>
               <span class="q-col-label">${s.quality_label
-                ? `<span class="badge" style="background:${hexRgba(color,0.25)};border:1px solid ${hexRgba(color,0.75)};color:${color}">${qlabel}</span>${calShort ? `<div class="q-cal">${calShort}</div>` : ""}`
+                ? `<span class="badge" style="background:${hexRgba(color,0.25)};border:1px solid ${hexRgba(color,0.75)};color:${color}">${this._escape(qlabel)}</span>${calShort ? `<div class="q-cal">${calShort}</div>` : ""}`
                 : "—"}</span>
               <span class="q-val">${this._fmt(s.rmse_kwh, 2)}</span>
               <span class="q-val q-val-mae">${this._fmt(s.mae_kwh, 2)}</span>
