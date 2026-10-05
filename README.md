@@ -3,7 +3,19 @@
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![HACS Validate](https://github.com/mkshb/hass-solar-fusion-card/actions/workflows/hacs-validate.yaml/badge.svg)](https://github.com/mkshb/hass-solar-fusion-card/actions/workflows/hacs-validate.yaml) [![GitHub Stars](https://img.shields.io/github/stars/mkshb/hass-solar-fusion-card?style=flat)](https://github.com/mkshb/hass-solar-fusion-card/stargazers) [![Last Commit](https://img.shields.io/github/last-commit/mkshb/hass-solar-fusion)](https://github.com/mkshb/hass-solar-fusion/commits/main) [![Open Issues](https://img.shields.io/github/issues/mkshb/hass-solar-fusion-card)](https://github.com/mkshb/hass-solar-fusion-card/issues)
 
 
-Lovelace custom card for the [Solar Fusion](https://github.com/bw/hass-solar-fusion) integration.
+> [!IMPORTANT]
+> **This repository is archived.** Since [Solar Fusion 0.4.0](https://github.com/mkshb/hass-solar-fusion/releases/tag/v0.4.0) the card ships with the integration – in a new Home Assistant style design – and is loaded automatically. No separate installation is needed.
+>
+> **Switching:** update Solar Fusion to 0.4.0 or newer, then
+> 1. In HACS, uninstall **Solar Fusion Card**.
+> 2. Under **Settings → Dashboards → ⋮ → Resources**, remove the `…/solar-fusion-card.js` resource if it is still listed.
+> 3. Reload the browser.
+>
+> Your cards (`type: custom:solar-fusion-card`) keep working unchanged. Solar Fusion shows a repair issue as long as the old resource is registered. Issues and ideas for the card: [hass-solar-fusion](https://github.com/mkshb/hass-solar-fusion/issues).
+>
+> The documentation below describes the last standalone version (v0.1.15) for Solar Fusion up to 0.3.x.
+
+Lovelace custom card for the [Solar Fusion](https://github.com/mkshb/hass-solar-fusion) integration.
 Displays the fused PV forecast with source comparison, quality metrics, and a 14-day history sparkline.
 
 ![preview](images/solar-fusion-card.png)
@@ -18,7 +30,7 @@ Displays the fused PV forecast with source comparison, quality metrics, and a 14
 
 ## Requirements
 
-- Home Assistant with the [Solar Fusion](https://github.com/bw/hass-solar-fusion) integration installed
+- Home Assistant with the [Solar Fusion](https://github.com/mkshb/hass-solar-fusion) integration installed
 - HACS (for easy installation)
 
 ## Installation via HACS
